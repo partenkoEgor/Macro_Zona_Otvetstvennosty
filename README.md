@@ -1,1 +1,91 @@
 # Macro_Zona_Otvetstvennosty
+
+VBA-макрос для Excel. Раскладывает выгрузку тикетов по листам гугл-таблицы «Зоны ответственности».
+
+Макрос создаёт в файле выгрузки 7 листов. Названия листов и столбцы такие же, как в гугл-таблице, поэтому строки можно копировать туда как есть.
+
+Файл макроса: [`ZonaOtvetstvennosti.bas`](ZonaOtvetstvennosti.bas).
+
+## Установка
+
+### Вариант 1. Один раз, для всех будущих выгрузок (рекомендуется)
+
+1. Откройте Excel и нажмите `Alt+F11`, откроется редактор VBA.
+2. Если в списке проектов слева нет `PERSONAL.XLSB`, создайте его:
+   1. Закройте редактор.
+   2. Выберите «Вид → Макросы → Запись макроса», в поле «Сохранить в» укажите «Личная книга макросов».
+   3. Нажмите «ОК», затем «Остановить запись».
+3. В редакторе VBA выделите `VBAProject (PERSONAL.XLSB)`.
+4. Выберите «File → Import File…» и укажите `ZonaOtvetstvennosti.bas`.
+5. Сохраните (`Ctrl+S`) и закройте редактор.
+
+### Вариант 2. Разово, в конкретный файл
+
+Откройте выгрузку, нажмите `Alt+F11`, выберите «File → Import File…» и укажите `ZonaOtvetstvennosti.bas`.
+
+## Запуск
+
+1. Откройте файл выгрузки, например `51279294749_20261111131020.xlsx`.
+2. Нажмите `Alt+F8`, выберите `RazlozhitPoListam` и нажмите «Выполнить».
+3. Через 10–30 секунд появится сводка: сколько тикетов попало на каждый лист.
+4. На каждом листе выделите строки начиная со 2-й, скопируйте их и вставьте в гугл-таблицу в ячейку `A2` соответствующего листа.
+
+Повторный запуск пересоздаёт листы заново. Лист выгрузки `Report` макрос не изменяет.
+
+## Как считается время
+
+- Момент выгрузки берётся из имени файла: `..._ГГГГММДДччммсс.xlsx`. Если в имени нет даты, берётся самая поздняя `Processing date` в выгрузке.
+- «Время обработки (Часы)» — сколько полных часов прошло от `Processing date` до момента выгрузки, то есть сколько тикет висит в текущем статусе.
+- «Критический 72ч+» — «Да», если тикет висит 72 часа и больше.
+- Строки на листах отсортированы так, что дольше всего висящие тикеты стоят сверху.
+
+## Сопоставление столбцов
+
+| Гугл-таблица | Выгрузка |
+|---|---|
+| Тип тикета | `Ticket type` |
+| Департамент | `Department` |
+| ГЕО | `Country` |
+| Реферал | `Referal` |
+| TICKET ID | `Ticket ID` |
+| USER ID | `User ID` |
+| Внешний статус | `External Status` |
+| Внутренний статус | `Status` |
+| Дата создания (MSK) | `Date created` |
+| Во внешем статусе с (МСК) | `Processing date` |
+| Время обработки (Часы) | рассчитывается |
+| Критический 72ч+ | рассчитывается |
+| Статус обработки, Комментарий | пустые, заполняются вручную |
+| Комментарий тикета | `Internal comment` |
+
+## Правила отбора
+
+Списки статусов и стран сравниваются без учёта регистра и без учёта хвоста `(M)`. Например, `Received (M)` (тип BT M) и `Received` (тип SMP M) считаются одним статусом.
+
+**Статусы для всех гео:** Received, Approved, Create new transaction, Received (Fraud), Credited to another account, Revision needed.
+
+**Статусы только для активных регионов:** Higher quality and resolution file, Not Received, Request a statement for deposit, Refund details needed, Request deposit screenshot, Returned to sender’s account, File does not match ticket.
+
+**Активные регионы:** Afghanistan, Azerbaijan, Bolivia, Canada, Guatemala, Honduras, Iran, Jamaica, Kyrgyzstan, Nicaragua, Panama, Paraguay, Taiwan.
+
+| Лист | Тип | Департамент | Статусы | Гео | Порог |
+|---|---|---|---|---|---|
+| **T&A** | любой | любой | внешний `In progress` / `In progress (M)` и в `Internal comment` есть «waiting for TA» | любые | нет |
+| **T&A x Operations B \| BT M** | BT M | MENA 1x | внешний: для всех гео + для активных регионов | см. статусы | 100+ ч |
+| **Operations B \| PSP** | PSP | MENA 1x | внутренний: Customer provided additional info, In progress, New | Azerbaijan, Turkey, Kyrgyzstan, Somalia, Iran | 24+ ч |
+| **Operations B \| SMP M** | SMP M | MENA 1x | внешний: для всех гео | любые | 24+ ч |
+| **Operations A \| API** | API | MENA 1x | внутренний: In progress, Revising a pending request, Customer provided additional info, New, Awaiting response from PS | Algeria, Egypt, Morocco, Tunisia, Turkey | 24+ ч |
+| **Operations B \| API** | API | MENA 1x | те же, что у Operations A \| API | Azerbaijan, Bahrain, Somalia, Jordan, Oman, Saudi Arabia, Kyrgyzstan, Iran, Iraq | 24+ ч |
+| **QC \| Mena Leads 1x** | API, BT M, SMP M | Mena Leads 1x | внешний: для всех гео + для активных регионов | см. статусы | нет |
+
+Тикеты, попавшие на лист **T&A**, на другие листы не попадают. Реферал на всех листах любой.
+
+## Как поменять правила
+
+Все пороги, списки статусов и стран собраны в блоке `НАСТРОЙКИ` в начале модуля. Элементы списков разделяются точкой с запятой. Например, чтобы поменять порог для листа BT M:
+
+```vb
+Private Const HOURS_BTM As Double = 100
+```
+
+Русский текст в коде записан кодами `\uXXXX` (функция `U`), поэтому модуль импортируется правильно при любых языковых настройках Windows.
