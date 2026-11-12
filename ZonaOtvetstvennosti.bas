@@ -86,7 +86,7 @@ Private kTaMark As String, kTaStatus As String, kDeptMain As String, kDeptLeads 
 
 ' Номера столбцов выгрузки
 Private cType As Long, cDept As Long, cGeo As Long, cRef As Long, cTid As Long, cUid As Long
-Private cExt As Long, cInt As Long, cCreated As Long, cProc As Long, cComment As Long
+Private cExt As Long, cStatus As Long, cCreated As Long, cProc As Long, cComment As Long
 
 '=====================================================================================
 ' ГЛАВНЫЙ МАКРОС
@@ -194,7 +194,7 @@ Private Function Classify(data As Variant, ByVal r As Long, ByVal h As Double) A
     dept = NormKey(data(r, cDept))
     geo = NormKey(data(r, cGeo))
     ext = NormStatus(data(r, cExt))
-    st = NormStatus(data(r, cInt))
+    st = NormStatus(data(r, cStatus))
     cm = LCase$(CStr(data(r, cComment)))
 
     ' T&A - все типы и департаменты; такие тикеты не попадают на другие листы
@@ -332,7 +332,7 @@ Private Function BuildSheet(wb As Workbook, afterWs As Worksheet, ByVal k As Lon
                 Case "TID":  out(i + 1, c) = ToNumberOrText(data(r, cTid))
                 Case "UID":  out(i + 1, c) = ToNumberOrText(data(r, cUid))
                 Case "EXT":  out(i + 1, c) = CStr(data(r, cExt))
-                Case "INT":  out(i + 1, c) = CStr(data(r, cInt))
+                Case "INT":  out(i + 1, c) = CStr(data(r, cStatus))
                 Case "CRT":  out(i + 1, c) = DateOrEmpty(data(r, cCreated))
                 Case "INS":  out(i + 1, c) = DateOrEmpty(data(r, cProc))
                 Case "HRS":  out(i + 1, c) = Int(hrs(r))
@@ -414,7 +414,7 @@ Private Function MapColumns(data As Variant) As String
     cTid = HeaderCol(data, "Ticket ID"):           If cTid = 0 Then m = m & "Ticket ID" & vbLf
     cUid = HeaderCol(data, "User ID"):             If cUid = 0 Then m = m & "User ID" & vbLf
     cExt = HeaderCol(data, "External Status"):     If cExt = 0 Then m = m & "External Status" & vbLf
-    cInt = HeaderCol(data, "Status"):              If cInt = 0 Then m = m & "Status" & vbLf
+    cStatus = HeaderCol(data, "Status"):              If cStatus = 0 Then m = m & "Status" & vbLf
     cCreated = HeaderCol(data, "Date created"):    If cCreated = 0 Then m = m & "Date created" & vbLf
     cProc = HeaderCol(data, "Processing date"):    If cProc = 0 Then m = m & "Processing date" & vbLf
     cComment = HeaderCol(data, "Internal comment"): If cComment = 0 Then m = m & "Internal comment" & vbLf
