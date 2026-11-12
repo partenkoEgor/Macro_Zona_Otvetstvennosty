@@ -4,7 +4,7 @@ Option Explicit
 '=====================================================================================
 ' Макрос «Зоны ответственности»
 '
-' Берёт выгрузку тикетов (лист "Report"), создаёт в этой же книге 7 листов
+' Берёт выгрузку тикетов (лист "Report"), создаёт в этой же книге 8 листов
 ' с теми же названиями и столбцами, что в гугл-таблице, и раскладывает
 ' тикеты по листам. Дальше строки остаётся скопировать в гугл-таблицу.
 '
@@ -24,17 +24,25 @@ Private Const SRC_SHEET As String = "Report"
 
 ' Пороги: сколько часов тикет должен висеть в текущем статусе
 ' (от Processing date до момента выгрузки), чтобы попасть на лист.
-Private Const HOURS_BTM As Double = 100    ' T&A x Operations B | BT M
+Private Const HOURS_BTM As Double = 100    ' Operations B | BT M (и T&A)
 Private Const HOURS_PSP As Double = 24     ' Operations B | PSP
 Private Const HOURS_SMP As Double = 24     ' Operations B | SMP M
 Private Const HOURS_API As Double = 24     ' Operations B | API и Operations A | API
 Private Const HOURS_QC As Double = 0       ' QC | Mena Leads 1x (0 = без порога)
 Private Const HOURS_CRIT As Double = 72    ' с какого часа ставить "Да" в «Критический 72ч+»
 
-' Метка в Internal comment для листа T&A
+' T&A(Комментарий): метка в Internal comment и статус, при котором тикет туда уходит
+' ("In progress (M)" и "In progress"). С другим статусом тикет считается обычным.
 Private Const TA_MARK As String = "waiting for TA"
-' Статус, при котором тикет с меткой уходит на T&A ("In progress (M)" и "In progress")
 Private Const TA_STATUS As String = "In progress"
+
+' T&A: сколько тикетов и в каком внешнем статусе забрать с листа Operations B | BT M
+' (берутся те, что дольше всех висят в статусе; если меньше - сколько есть)
+Private Const TA_TOP_COUNT As Long = 300
+Private Const TA_TOP_STATUS As String = "Received"
+
+' Формат дат на листах. ГГГГ-ММ-ДД Google распознаёт как дату при любых настройках.
+Private Const DATE_FORMAT As String = "yyyy-mm-dd hh:mm:ss"
 
 ' Внешние статусы, которые берутся для ВСЕХ гео (листы BT M, SMP M, QC)
 Private Const ST_ALL_GEO As String = "Received;Approved;Create new transaction;Received (Fraud);" & _
@@ -69,13 +77,17 @@ Private Const QC_TYPES As String = "API;BT M;SMP M"
 
 ' Номера листов (порядок как в гугл-таблице)
 Private Const SH_BTM As Long = 1
-Private Const SH_TA As Long = 2
-Private Const SH_PSP As Long = 3
-Private Const SH_SMP As Long = 4
-Private Const SH_API_B As Long = 5
-Private Const SH_API_A As Long = 6
-Private Const SH_QC As Long = 7
-Private Const SH_COUNT As Long = 7
+Private Const SH_TA_TOP As Long = 2
+Private Const SH_TA_COMMENT As Long = 3
+Private Const SH_PSP As Long = 4
+Private Const SH_SMP As Long = 5
+Private Const SH_API_B As Long = 6
+Private Const SH_API_A As Long = 7
+Private Const SH_QC As Long = 8
+Private Const SH_COUNT As Long = 8
+
+' Названия листов из прошлых версий - удаляются при пересоздании
+Private Const OLD_SHEETS As String = "T&A x Operations B | BT M"
 
 ' Подготовленные (нормализованные) списки
 Private aStAll As Variant, aStActive As Variant, aActiveGeo As Variant
@@ -83,6 +95,7 @@ Private aPspSt As Variant, aPspGeo As Variant
 Private aApiSt As Variant, aGeoA As Variant, aGeoB As Variant
 Private aQcTypes As Variant
 Private kTaMark As String, kTaStatus As String, kDeptMain As String, kDeptLeads As String
+Private kTopStatus As String
 
 ' Номера столбцов выгрузки
 Private cType As Long, cDept As Long, cGeo As Long, cRef As Long, cTid As Long, cUid As Long
@@ -146,10 +159,18 @@ Public Sub RazlozhitPoListam()
         If tgt(r) > 0 Then cnt(tgt(r)) = cnt(tgt(r)) + 1
     Next r
 
+    ' 1a. T&A: забираем с BT M самые старые тикеты в статусе TA_TOP_STATUS
+    PickTopReceived data, tgt, hrs, nRows, cnt
+
     ' 2. Пересоздаём листы и выводим данные
     Application.DisplayAlerts = False
     For k = 1 To SH_COUNT
         DeleteSheetIfExists wb, SheetName(k), src
+    Next k
+    Dim oldNames As Variant
+    oldNames = Split(OLD_SHEETS, ";")
+    For k = LBound(oldNames) To UBound(oldNames)
+        DeleteSheetIfExists wb, CStr(oldNames(k)), src
     Next k
     Application.DisplayAlerts = True
 
@@ -197,9 +218,9 @@ Private Function Classify(data As Variant, ByVal r As Long, ByVal h As Double) A
     st = NormStatus(data(r, cStatus))
     cm = LCase$(CStr(data(r, cComment)))
 
-    ' T&A - все типы и департаменты; такие тикеты не попадают на другие листы
+    ' T&A(Комментарий) - все типы и департаменты; такие тикеты не попадают на другие листы
     If InStr(1, cm, kTaMark, vbBinaryCompare) > 0 And ext = kTaStatus Then
-        Classify = SH_TA
+        Classify = SH_TA_COMMENT
         Exit Function
     End If
 
@@ -225,6 +246,31 @@ Private Function Classify(data As Variant, ByVal r As Long, ByVal h As Double) A
     End If
 End Function
 
+' T&A: из тикетов листа Operations B | BT M в статусе TA_TOP_STATUS
+' переносит TA_TOP_COUNT самых долго висящих на лист T&A
+Private Sub PickTopReceived(data As Variant, tgt() As Long, hrs() As Double, ByVal nRows As Long, cnt() As Long)
+    Dim pool() As Long, n As Long, r As Long, i As Long, nTake As Long
+    If TA_TOP_COUNT <= 0 Then Exit Sub
+    ReDim pool(1 To nRows)
+    For r = 2 To nRows
+        If tgt(r) = SH_BTM Then
+            If NormStatus(data(r, cExt)) = kTopStatus Then
+                n = n + 1
+                pool(n) = r
+            End If
+        End If
+    Next r
+    If n = 0 Then Exit Sub
+    SortByHoursDesc pool, hrs, 1, n
+    nTake = TA_TOP_COUNT
+    If nTake > n Then nTake = n
+    For i = 1 To nTake
+        tgt(pool(i)) = SH_TA_TOP
+    Next i
+    cnt(SH_BTM) = cnt(SH_BTM) - nTake
+    cnt(SH_TA_TOP) = cnt(SH_TA_TOP) + nTake
+End Sub
+
 ' Статусы для всех гео + статусы только для активных регионов
 Private Function ExtStatusRule(ByVal ext As String, ByVal geo As String) As Boolean
     If InList(ext, aStAll) Then
@@ -239,8 +285,9 @@ End Function
 '=====================================================================================
 Private Function SheetName(ByVal k As Long) As String
     Select Case k
-        Case SH_BTM:   SheetName = "T&A x Operations B | BT M"
-        Case SH_TA:    SheetName = "T&A"
+        Case SH_BTM:   SheetName = "Operations B | BT M"
+        Case SH_TA_TOP: SheetName = "T&A"
+        Case SH_TA_COMMENT: SheetName = "T&A(" & U("\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439") & ")"
         Case SH_PSP:   SheetName = "Operations B | PSP"
         Case SH_SMP:   SheetName = "Operations B | SMP M"
         Case SH_API_B: SheetName = "Operations B | API"
@@ -257,7 +304,7 @@ End Function
 '   TCOM - Комментарий тикета COM  - Комментарий (пусто)
 Private Function SheetFields(ByVal k As Long) As Variant
     Select Case k
-        Case SH_TA, SH_QC
+        Case SH_TA_TOP, SH_TA_COMMENT, SH_QC
             SheetFields = Split("TYPE;DEPT;GEO;REF;TID;UID;EXT;INT;CRT;INS;HRS;CRIT;PROC;TCOM;COM", ";")
         Case SH_PSP
             SheetFields = Split("TYPE;DEPT;GEO;REF;TID;UID;INT;CRT;INS;HRS;CRIT;PROC;TCOM;COM", ";")
@@ -350,7 +397,7 @@ Private Function BuildSheet(wb As Workbook, afterWs As Worksheet, ByVal k As Lon
         With ws.Range(ws.Cells(1, c), ws.Cells(n + 1, c))
             Select Case CStr(flds(c - 1))
                 Case "TID", "UID", "HRS": .NumberFormat = "0"
-                Case "CRT", "INS":        .NumberFormat = "dd.mm.yyyy hh:mm:ss"
+                Case "CRT", "INS":        .NumberFormat = DATE_FORMAT
                 Case Else:                .NumberFormat = "@"
             End Select
         End With
@@ -443,6 +490,7 @@ Private Sub InitLists()
     aQcTypes = PrepList(QC_TYPES, False)
     kTaMark = LCase$(TA_MARK)
     kTaStatus = NormStatus(TA_STATUS)
+    kTopStatus = NormStatus(TA_TOP_STATUS)
     kDeptMain = NormKey(DEPT_MAIN)
     kDeptLeads = NormKey(DEPT_LEADS)
 End Sub
@@ -491,7 +539,8 @@ End Function
 ' Часы от Processing date до момента выгрузки (если даты нет - 0)
 Private Function HoursInStatus(ByVal v As Variant, ByVal exportTime As Date) As Double
     Dim d As Date
-    If ParseDate(v, d) Then HoursInStatus = (CDbl(exportTime) - CDbl(d)) * 24#
+    ' Считаем в целых секундах, чтобы ровно N часов не превращались в N-0.0000001
+    If ParseDate(v, d) Then HoursInStatus = DateDiff("s", d, exportTime) / 3600#
 End Function
 
 ' Дата из текста "ГГГГ-ММ-ДД чч:мм:сс" или из настоящей даты Excel
