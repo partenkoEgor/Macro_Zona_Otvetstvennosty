@@ -73,6 +73,12 @@ Private Const DEPT_MAIN As String = "MENA 1x"
 Private Const DEPT_LEADS As String = "Mena Leads 1x"
 Private Const QC_TYPES As String = "API;BT M;SMP M"
 
+' Типы тикетов, для которых берутся ТОЛЬКО депозиты (в любом департаменте).
+' Тикет такого типа с другой темой (выводы) не попадает ни на один лист.
+Private Const DEPOSIT_ONLY_TYPES As String = "BT M"
+' Темы обращения (столбец Topic), которые считаются депозитом
+Private Const DEPOSIT_TOPICS As String = "Unsuccessful deposit;Deposit error"
+
 '---------------------------------- КОНЕЦ НАСТРОЕК ----------------------------------
 
 ' Номера листов (порядок как в гугл-таблице)
@@ -93,13 +99,14 @@ Private Const OLD_SHEETS As String = "T&A x Operations B | BT M"
 Private aStAll As Variant, aStActive As Variant, aActiveGeo As Variant
 Private aPspSt As Variant, aPspGeo As Variant
 Private aApiSt As Variant, aGeoA As Variant, aGeoB As Variant
-Private aQcTypes As Variant
+Private aQcTypes As Variant, aDepTypes As Variant, aDepTopics As Variant
 Private kTaMark As String, kTaStatus As String, kDeptMain As String, kDeptLeads As String
 Private kTopStatus As String
 
 ' Номера столбцов выгрузки
 Private cType As Long, cDept As Long, cGeo As Long, cRef As Long, cTid As Long, cUid As Long
 Private cExt As Long, cStatus As Long, cCreated As Long, cProc As Long, cComment As Long
+Private cTopic As Long
 
 '=====================================================================================
 ' ГЛАВНЫЙ МАКРОС
@@ -217,6 +224,11 @@ Private Function Classify(data As Variant, ByVal r As Long, ByVal h As Double) A
     ext = NormStatus(data(r, cExt))
     st = NormStatus(data(r, cStatus))
     cm = LCase$(CStr(data(r, cComment)))
+
+    ' Для типов из DEPOSIT_ONLY_TYPES (BT M) - только депозиты, выводы никуда не идут
+    If InList(tType, aDepTypes) Then
+        If Not InList(NormKey(data(r, cTopic)), aDepTopics) Then Exit Function
+    End If
 
     ' T&A(Комментарий) - все типы и департаменты; такие тикеты не попадают на другие листы
     If InStr(1, cm, kTaMark, vbBinaryCompare) > 0 And ext = kTaStatus Then
@@ -465,6 +477,7 @@ Private Function MapColumns(data As Variant) As String
     cCreated = HeaderCol(data, "Date created"):    If cCreated = 0 Then m = m & "Date created" & vbLf
     cProc = HeaderCol(data, "Processing date"):    If cProc = 0 Then m = m & "Processing date" & vbLf
     cComment = HeaderCol(data, "Internal comment"): If cComment = 0 Then m = m & "Internal comment" & vbLf
+    cTopic = HeaderCol(data, "Topic"):             If cTopic = 0 Then m = m & "Topic" & vbLf
     MapColumns = m
 End Function
 
@@ -488,6 +501,8 @@ Private Sub InitLists()
     aGeoA = PrepList(API_GEO_A, False)
     aGeoB = PrepList(API_GEO_B, False)
     aQcTypes = PrepList(QC_TYPES, False)
+    aDepTypes = PrepList(DEPOSIT_ONLY_TYPES, False)
+    aDepTopics = PrepList(DEPOSIT_TOPICS, False)
     kTaMark = LCase$(TA_MARK)
     kTaStatus = NormStatus(TA_STATUS)
     kTopStatus = NormStatus(TA_TOP_STATUS)
