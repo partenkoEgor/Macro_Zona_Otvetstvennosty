@@ -85,8 +85,9 @@ VBA-макрос для Excel. Раскладывает выгрузку тик�
 | **T&A(Комментарий)** | любой | любой | внешний `In progress` / `In progress (M)` и в `Internal comment` есть «waiting for TA» | любые | нет |
 | **Operations B \| PSP** | PSP | MENA 1x | внутренний: Customer provided additional info, New | Azerbaijan, Turkey, Kyrgyzstan, Somalia, Iran | 24+ ч |
 | **Operations B \| SMP M** | SMP M | MENA 1x | внешний: для всех гео | любые | 24+ ч |
-| **Operations A \| API** | API | MENA 1x | внутренний: In progress, Revising a pending request, Customer provided additional info, New, Awaiting response from PS | Algeria, Egypt, Morocco, Tunisia, Turkey | 24+ ч |
-| **Operations B \| API** | API | MENA 1x | те же, что у Operations A \| API | Azerbaijan, Bahrain, Somalia, Jordan, Oman, Saudi Arabia, Kyrgyzstan, Iran, Iraq | 24+ ч |
+| **Operations A \| API** | API | MENA 1x | внутренний: In progress, Revising a pending request, Customer provided additional info, New, Awaiting response from PS | Algeria, Egypt, Morocco, Turkey | 24+ ч |
+| **Operations B \| API** (группа 1) | API | MENA 1x | внутренний: In progress, Awaiting response from PS | Bahrain, Jordan, Iraq, Oman, Saudi Arabia, Tunisia | 24+ ч |
+| **Operations B \| API** (группа 2) | API | MENA 1x | внутренний: Revising a pending request, Customer provided additional info, New, Awaiting response from PS (без In progress) | Azerbaijan, Somalia, Kyrgyzstan, Iran | 24+ ч |
 | **QC \| Mena Leads 1x** | API, BT M, SMP M | Mena Leads 1x | внешний: для всех гео + для активных регионов | см. статусы | нет |
 
 Тикеты, попавшие на лист **T&A(Комментарий)**, на другие листы не попадают. Тикет с пометкой «waiting for TA» в другом статусе считается обычным и распределяется по общим правилам. Реферал на всех листах любой.

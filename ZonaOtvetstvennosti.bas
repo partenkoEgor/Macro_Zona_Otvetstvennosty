@@ -61,12 +61,19 @@ Private Const ACTIVE_GEO As String = "Afghanistan;Azerbaijan;Bolivia;Canada;Guat
 Private Const PSP_STATUS As String = "Customer provided additional info;New"
 Private Const PSP_GEO As String = "Azerbaijan;Turkey;Kyrgyzstan;Somalia;Iran"
 
-' Operations A/B | API: внутренние статусы (столбец Status) и гео команд
-Private Const API_STATUS As String = "In progress;Revising a pending request;" & _
+' Operations A | API: гео команды A и внутренние статусы (столбец Status)
+Private Const API_GEO_A As String = "Algeria;Egypt;Morocco;Turkey"
+Private Const API_STATUS_A As String = "In progress;Revising a pending request;" & _
     "Customer provided additional info;New;Awaiting response from PS"
-Private Const API_GEO_A As String = "Algeria;Egypt;Morocco;Tunisia;Turkey"
-Private Const API_GEO_B As String = "Azerbaijan;Bahrain;Somalia;Jordan;Oman;Saudi Arabia;" & _
-    "Kyrgyzstan;Iran;Iraq"
+
+' Operations B | API, группа 1: эти гео - только перечисленные статусы
+Private Const API_GEO_B1 As String = "Bahrain;Jordan;Iraq;Oman;Saudi Arabia;Tunisia"
+Private Const API_STATUS_B1 As String = "In progress;Awaiting response from PS"
+
+' Operations B | API, группа 2: остальные гео команды B - без In progress
+Private Const API_GEO_B2 As String = "Azerbaijan;Somalia;Kyrgyzstan;Iran"
+Private Const API_STATUS_B2 As String = "Revising a pending request;" & _
+    "Customer provided additional info;New;Awaiting response from PS"
 
 ' Департаменты и типы тикетов
 Private Const DEPT_MAIN As String = "MENA 1x"
@@ -98,7 +105,8 @@ Private Const OLD_SHEETS As String = "T&A x Operations B | BT M"
 ' Подготовленные (нормализованные) списки
 Private aStAll As Variant, aStActive As Variant, aActiveGeo As Variant
 Private aPspSt As Variant, aPspGeo As Variant
-Private aApiSt As Variant, aGeoA As Variant, aGeoB As Variant
+Private aApiStA As Variant, aGeoA As Variant
+Private aApiStB1 As Variant, aGeoB1 As Variant, aApiStB2 As Variant, aGeoB2 As Variant
 Private aQcTypes As Variant, aDepTypes As Variant, aDepTopics As Variant
 Private kTaMark As String, kTaStatus As String, kDeptMain As String, kDeptLeads As String
 Private kTopStatus As String
@@ -245,11 +253,13 @@ Private Function Classify(data As Variant, ByVal r As Long, ByVal h As Double) A
             Case "smp m"
                 If h >= HOURS_SMP And InList(ext, aStAll) Then Classify = SH_SMP
             Case "api"
-                If h >= HOURS_API And InList(st, aApiSt) Then
+                If h >= HOURS_API Then
                     If InList(geo, aGeoA) Then
-                        Classify = SH_API_A
-                    ElseIf InList(geo, aGeoB) Then
-                        Classify = SH_API_B
+                        If InList(st, aApiStA) Then Classify = SH_API_A
+                    ElseIf InList(geo, aGeoB1) Then
+                        If InList(st, aApiStB1) Then Classify = SH_API_B
+                    ElseIf InList(geo, aGeoB2) Then
+                        If InList(st, aApiStB2) Then Classify = SH_API_B
                     End If
                 End If
         End Select
@@ -497,9 +507,12 @@ Private Sub InitLists()
     aActiveGeo = PrepList(ACTIVE_GEO, False)
     aPspSt = PrepList(PSP_STATUS, True)
     aPspGeo = PrepList(PSP_GEO, False)
-    aApiSt = PrepList(API_STATUS, True)
     aGeoA = PrepList(API_GEO_A, False)
-    aGeoB = PrepList(API_GEO_B, False)
+    aApiStA = PrepList(API_STATUS_A, True)
+    aGeoB1 = PrepList(API_GEO_B1, False)
+    aApiStB1 = PrepList(API_STATUS_B1, True)
+    aGeoB2 = PrepList(API_GEO_B2, False)
+    aApiStB2 = PrepList(API_STATUS_B2, True)
     aQcTypes = PrepList(QC_TYPES, False)
     aDepTypes = PrepList(DEPOSIT_ONLY_TYPES, False)
     aDepTopics = PrepList(DEPOSIT_TOPICS, False)
