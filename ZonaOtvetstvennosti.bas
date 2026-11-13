@@ -58,7 +58,7 @@ Private Const ACTIVE_GEO As String = "Afghanistan;Azerbaijan;Bolivia;Canada;Guat
     "Jamaica;Kyrgyzstan;Nicaragua;Panama;Paraguay;Taiwan"
 
 ' Operations B | PSP: внутренние статусы (столбец Status) и гео
-Private Const PSP_STATUS As String = "Customer provided additional info;In progress;New"
+Private Const PSP_STATUS As String = "Customer provided additional info;New"
 Private Const PSP_GEO As String = "Azerbaijan;Turkey;Kyrgyzstan;Somalia;Iran"
 
 ' Operations A/B | API: внутренние статусы (столбец Status) и гео команд
