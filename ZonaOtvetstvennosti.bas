@@ -80,9 +80,9 @@ Private Const DEPT_MAIN As String = "MENA 1x"
 Private Const DEPT_LEADS As String = "Mena Leads 1x"
 Private Const QC_TYPES As String = "API;BT M;SMP M"
 
-' Типы тикетов, для которых берутся ТОЛЬКО депозиты (в любом департаменте).
+' Типы тикетов, для которых берутся ТОЛЬКО депозиты (в любом департаменте): BT M и SMP M.
 ' Тикет такого типа с другой темой (выводы) не попадает ни на один лист.
-Private Const DEPOSIT_ONLY_TYPES As String = "BT M"
+Private Const DEPOSIT_ONLY_TYPES As String = "BT M;SMP M"
 ' Темы обращения (столбец Topic), которые считаются депозитом
 Private Const DEPOSIT_TOPICS As String = "Unsuccessful deposit;Deposit error"
 
