@@ -114,3 +114,5 @@ Private Const HOURS_BTM As Double = 100
 - `Monitoring_Nagruzka.txt` — Monitoring_Нагрузка (точка входа `Monitoring_Нагрузка`).
 
 24.11.2026: API Turkey перенесена в Team B в обоих макросах. В MH — группа 2 листа Operations B | API (все статусы, кроме In progress); в мониторинге — API Team B без ограничений Referal/Agent, статусы как у Azerbaijan.
+
+24.11.2026: в API Team B мониторинга добавлены Iraq, Tunisia (только Awaiting response from PS / In progress, как Bahrain) и Kyrgyzstan, Iran (все статусы, кроме In progress) — по тем же правилам, что в MH; Referal/Agent не ограничены.
