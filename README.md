@@ -105,3 +105,12 @@ Private Const HOURS_BTM As Double = 100
 ```
 
 Русский текст в коде записан кодами `\uXXXX` (функция `U`), поэтому модуль импортируется правильно при любых языковых настройках Windows.
+
+## Папка `macros/`
+
+Актуальные рабочие версии макросов в том виде, в каком они используются в Excel (UTF-8, вставляются в модуль как текст):
+
+- `MH_Zony_Otvetstvennosti.txt` — раскладка выгрузки по листам гугл-таблицы (точка входа `MH_Zony_Otvetstvennosti`).
+- `Monitoring_Nagruzka.txt` — Monitoring_Нагрузка (точка входа `Monitoring_Нагрузка`).
+
+24.11.2026: API Turkey перенесена в Team B в обоих макросах. В MH — группа 2 листа Operations B | API (все статусы, кроме In progress); в мониторинге — API Team B без ограничений Referal/Agent, статусы как у Azerbaijan.
