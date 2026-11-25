@@ -16,6 +16,10 @@
 ' при сравнении не важны.
 '=====================================================================================
 
+' 25.11.2026: новые правила Operations A | API - страны из макроса мониторинга (по Country,
+' иначе по валюте), кроме стран команды B; исключены пары страна-реферал (зона L1),
+' кроме дополнительных списков API_A_EXTRA.
+
 '------------------------------------ НАСТРОЙКИ ------------------------------------
 
 ' Лист с выгрузкой. Если такого листа нет, берётся первый лист книги.
@@ -60,10 +64,38 @@ Private Const ACTIVE_GEO As String = "Afghanistan;Azerbaijan;Bolivia;Canada;Guat
 Private Const PSP_STATUS As String = "Customer provided additional info;New"
 Private Const PSP_GEO As String = "Azerbaijan;Turkey;Kyrgyzstan;Somalia;Iran"
 
-' Operations A | API: гео команды A и внутренние статусы (столбец Status)
-Private Const API_GEO_A As String = "Algeria;Egypt;Morocco"
+' Operations A | API (только MENA 1x, порог HOURS_API).
+' Страны - список из макроса мониторинга (L2_PresetGeo). Если Country не из списка,
+' страна берётся по валюте тикета (CURRENCY_GEO). Страны команды B (API_GEO_B1 и
+' API_GEO_B2) в команду A не попадают никогда.
+Private Const API_A_GEO As String = "Azerbaijan;Algeria;Afghanistan;Bahrain;Bolivia;Guatemala;Honduras;" & _
+    "Djibouti;Egypt;Jordan;Iraq;Iran;Yemen;Canada;Qatar;Kuwait;Kyrgyzstan;Lebanon;Libya;" & _
+    "Mauritania;Morocco;Nicaragua;United Arab Emirates;Oman;Palestine;Panama;Paraguay;" & _
+    "Saudi Arabia;Syria;Somalia;Sudan;Taiwan;Tunisia;Turkey;South Sudan"
+' Внутренние статусы (столбец Status)
 Private Const API_STATUS_A As String = "In progress;Revising a pending request;" & _
     "Customer provided additional info;New;Awaiting response from PS"
+' Пары страна:реферал, которые НЕ идут в команду A (зона L1)
+Private Const API_A_EXCL_PAIRS As String = "Afghanistan:webDefault;Algeria:webDefault;" & _
+    "Bahrain:1xCasino;Bahrain:webDefault;Djibouti:webDefault;Egypt:webDefault;" & _
+    "Jordan:1xCasino;Jordan:webDefault;Iraq:1xCasino;Iraq:webDefault;Yemen:1xCasino;Yemen:webDefault;" & _
+    "Qatar:1xCasino;Qatar:webDefault;Kuwait:1xCasino;Kuwait:webDefault;Lebanon:webDefault;" & _
+    "Mauritania:webDefault;Morocco:webDefault;United Arab Emirates:webDefault;" & _
+    "Oman:1xCasino;Oman:webDefault;Palestine:webDefault;Saudi Arabia:1xCasino;Saudi Arabia:webDefault;" & _
+    "Syria:webDefault;Tunisia:1xbet.tn;Tunisia:1xCasino;Tunisia:webDefault"
+' Дополнительные списки: эти страна+статус идут в команду A, даже если пара
+' страна:реферал есть в API_A_EXCL_PAIRS. Формат: страны=статусы, группы через "|".
+' Iran указан по заданию, но он в команде B, поэтому фактически игнорируется.
+Private Const API_A_EXTRA As String = "Sudan,South Sudan,Iran,Afghanistan,Egypt=" & _
+    "New,Customer provided additional info,Revising a pending request|" & _
+    "Egypt,Algeria,Morocco,Mauritania=In progress"
+' Валюта тикета -> страна (как L2_CountryFromCurrency в мониторинге)
+Private Const CURRENCY_GEO As String = "AZN:Azerbaijan;DZD:Algeria;AFN:Afghanistan;BHD:Bahrain;" & _
+    "BOB:Bolivia;GTQ:Guatemala;HNL:Honduras;DJF:Djibouti;EGP:Egypt;IQD:Iraq;IRR:Iran;YER:Yemen;" & _
+    "CAD:Canada;QAR:Qatar;KWD:Kuwait;KGS:Kyrgyzstan;LBP:Lebanon;LYD:Libya;MRU:Mauritania;" & _
+    "MAD:Morocco;NIO:Nicaragua;AED:United Arab Emirates;OMR:Oman;PAB:Panama;PYG:Paraguay;" & _
+    "SAR:Saudi Arabia;SYP:Syria;SOS:Somalia;SDG:Sudan;TWD:Taiwan;TND:Tunisia;TRY:Turkey;" & _
+    "SSP:South Sudan;JMD:Jamaica"
 
 ' Operations B | API, группа 1: эти гео - только перечисленные статусы
 Private Const API_GEO_B1 As String = "Bahrain;Jordan;Iraq;Oman;Saudi Arabia;Tunisia"
@@ -105,7 +137,8 @@ Private Const OLD_SHEETS As String = "T&A x Operations B | BT M"
 ' Подготовленные (нормализованные) списки
 Private aStAll As Variant, aStActive As Variant, aActiveGeo As Variant
 Private aPspSt As Variant, aPspGeo As Variant
-Private aApiStA As Variant, aGeoA As Variant
+Private aApiStA As Variant, aApiAGeo As Variant, aApiAExcl As Variant, aApiAExtra As Variant
+Private aCurCode As Variant, aCurGeo As Variant
 Private aApiStB1 As Variant, aGeoB1 As Variant, aApiStB2 As Variant, aGeoB2 As Variant
 Private aQcTypes As Variant, aDepTypes As Variant, aDepTopics As Variant
 Private kTaMark As String, kTaStatus As String, kDeptMain As String, kDeptLeads As String
@@ -114,7 +147,7 @@ Private kTopStatus As String
 ' Номера столбцов выгрузки
 Private cType As Long, cDept As Long, cGeo As Long, cRef As Long, cTid As Long, cUid As Long
 Private cExt As Long, cStatus As Long, cCreated As Long, cProc As Long, cComment As Long
-Private cTopic As Long, cUserType As Long
+Private cTopic As Long, cUserType As Long, cCurrency As Long
 
 '=====================================================================================
 ' ГЛАВНЫЙ МАКРОС
@@ -267,12 +300,13 @@ Private Function Classify(data As Variant, ByVal r As Long, ByVal h As Double) A
                 If h >= HOURS_SMP And InList(ext, aStAll) Then Classify = SH_SMP
             Case "api"
                 If h >= HOURS_API Then
-                    If InList(geo, aGeoA) Then
-                        If InList(st, aApiStA) Then Classify = SH_API_A
-                    ElseIf InList(geo, aGeoB1) Then
+                    ' Команда B - по Country и группам; её страны в команду A не идут
+                    If InList(geo, aGeoB1) Then
                         If InList(st, aApiStB1) Then Classify = SH_API_B
                     ElseIf InList(geo, aGeoB2) Then
                         If InList(st, aApiStB2) Then Classify = SH_API_B
+                    ElseIf IsApiTeamA(data, r, st) Then
+                        Classify = SH_API_A
                     End If
                 End If
         End Select
@@ -305,6 +339,44 @@ Private Sub PickTopReceived(data As Variant, tgt() As Long, hrs() As Double, ByV
     cnt(SH_BTM) = cnt(SH_BTM) - nTake
     cnt(SH_TA_TOP) = cnt(SH_TA_TOP) + nTake
 End Sub
+
+' Operations A | API: страна (Country или по валюте) не из команды B, статус из API_STATUS_A,
+' пара страна:реферал не в API_A_EXCL_PAIRS - либо страна:статус в API_A_EXTRA.
+Private Function IsApiTeamA(data As Variant, ByVal r As Long, ByVal st As String) As Boolean
+    Dim wg As String
+    If Not InList(st, aApiStA) Then Exit Function
+    wg = ApiWorkGeo(data, r)
+    If Len(wg) = 0 Then Exit Function
+    If IsApiTeamBGeo(wg) Then Exit Function
+    If Not InList(wg & "|" & NormKey(data(r, cRef)), aApiAExcl) Then
+        IsApiTeamA = True
+    ElseIf InList(wg & "|" & st, aApiAExtra) Then
+        IsApiTeamA = True
+    End If
+End Function
+
+' Рабочая страна для команды A: Country из списка API_A_GEO, иначе страна по валюте
+Private Function ApiWorkGeo(data As Variant, ByVal r As Long) As String
+    Dim g As String, cur As String, i As Long
+    g = NormKey(data(r, cGeo))
+    If InList(g, aApiAGeo) Then
+        ApiWorkGeo = g
+        Exit Function
+    End If
+    If cCurrency = 0 Then Exit Function
+    cur = NormKey(data(r, cCurrency))
+    If Len(cur) = 0 Then Exit Function
+    For i = LBound(aCurCode) To UBound(aCurCode)
+        If aCurCode(i) = cur Then
+            If InList(CStr(aCurGeo(i)), aApiAGeo) Then ApiWorkGeo = CStr(aCurGeo(i))
+            Exit Function
+        End If
+    Next i
+End Function
+
+Private Function IsApiTeamBGeo(ByVal g As String) As Boolean
+    IsApiTeamBGeo = InList(g, aGeoB1) Or InList(g, aGeoB2)
+End Function
 
 ' Статусы для всех гео + статусы только для активных регионов
 Private Function ExtStatusRule(ByVal ext As String, ByVal geo As String) As Boolean
@@ -534,6 +606,8 @@ Private Function MapColumns(data As Variant) As String
     cComment = HeaderCol(data, "Internal comment"): If cComment = 0 Then m = m & "Internal comment" & vbLf
     cTopic = HeaderCol(data, "Topic"):             If cTopic = 0 Then m = m & "Topic" & vbLf
     cUserType = HeaderCol(data, "Type"):         If cUserType = 0 Then m = m & "Type" & vbLf
+    ' Необязательный: без него страна по валюте для команды A не определяется
+    cCurrency = HeaderCol(data, "Ticket currency")
     MapColumns = m
 End Function
 
@@ -553,8 +627,11 @@ Private Sub InitLists()
     aActiveGeo = PrepList(ACTIVE_GEO, False)
     aPspSt = PrepList(PSP_STATUS, True)
     aPspGeo = PrepList(PSP_GEO, False)
-    aGeoA = PrepList(API_GEO_A, False)
+    aApiAGeo = PrepList(API_A_GEO, False)
     aApiStA = PrepList(API_STATUS_A, True)
+    aApiAExcl = PrepPairs(API_A_EXCL_PAIRS)
+    aApiAExtra = PrepExtra(API_A_EXTRA)
+    PrepCurrency
     aGeoB1 = PrepList(API_GEO_B1, False)
     aApiStB1 = PrepList(API_STATUS_B1, True)
     aGeoB2 = PrepList(API_GEO_B2, False)
@@ -577,6 +654,54 @@ Private Function PrepList(ByVal s As String, ByVal isStatus As Boolean) As Varia
     Next i
     PrepList = a
 End Function
+
+' "страна:реферал;..." -> ключи "страна|реферал" (нормализованные)
+Private Function PrepPairs(ByVal s As String) As Variant
+    Dim a As Variant, i As Long, p As Long
+    a = Split(s, ";")
+    For i = LBound(a) To UBound(a)
+        p = InStr(1, a(i), ":")
+        a(i) = NormKey(Left$(a(i), p - 1)) & "|" & NormKey(Mid$(a(i), p + 1))
+    Next i
+    PrepPairs = a
+End Function
+
+' "страны=статусы|..." -> ключи "страна|статус" (нормализованные)
+Private Function PrepExtra(ByVal s As String) As Variant
+    Dim groups As Variant, parts As Variant, geos As Variant, sts As Variant
+    Dim g As Long, i As Long, j As Long, n As Long, res() As String
+    groups = Split(s, "|")
+    ReDim res(0 To 0)
+    For g = LBound(groups) To UBound(groups)
+        parts = Split(groups(g), "=")
+        geos = Split(parts(0), ",")
+        sts = Split(parts(1), ",")
+        For i = LBound(geos) To UBound(geos)
+            For j = LBound(sts) To UBound(sts)
+                ReDim Preserve res(0 To n)
+                res(n) = NormKey(geos(i)) & "|" & NormStatus(sts(j))
+                n = n + 1
+            Next j
+        Next i
+    Next g
+    PrepExtra = res
+End Function
+
+' CURRENCY_GEO -> параллельные массивы aCurCode / aCurGeo
+Private Sub PrepCurrency()
+    Dim a As Variant, i As Long, p As Long
+    Dim codes() As String, geos() As String
+    a = Split(CURRENCY_GEO, ";")
+    ReDim codes(LBound(a) To UBound(a))
+    ReDim geos(LBound(a) To UBound(a))
+    For i = LBound(a) To UBound(a)
+        p = InStr(1, a(i), ":")
+        codes(i) = NormKey(Left$(a(i), p - 1))
+        geos(i) = NormKey(Mid$(a(i), p + 1))
+    Next i
+    aCurCode = codes
+    aCurGeo = geos
+End Sub
 
 Private Function InList(ByVal key As String, lst As Variant) As Boolean
     Dim i As Long

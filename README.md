@@ -116,3 +116,5 @@ Private Const HOURS_BTM As Double = 100
 24.11.2026: API Turkey перенесена в Team B в обоих макросах. В MH — группа 2 листа Operations B | API (все статусы, кроме In progress); в мониторинге — API Team B без ограничений Referal/Agent, статусы как у Azerbaijan.
 
 24.11.2026: в API Team B мониторинга добавлены Iraq, Tunisia (только Awaiting response from PS / In progress, как Bahrain) и Kyrgyzstan, Iran (все статусы, кроме In progress) — по тем же правилам, что в MH; Referal/Agent не ограничены.
+
+25.11.2026: MH — новые правила Operations A | API: страны из списка мониторинга (по Country, иначе по валюте), кроме стран Team B; MENA 1x, 24+ ч, 5 статусов; исключены пары страна-реферал (зона L1), кроме дополнительных списков (Sudan/South Sudan/Afghanistan/Egypt: New/CPAI/Revising; Egypt/Algeria/Morocco/Mauritania: In progress). Настройки: API_A_GEO, API_A_EXCL_PAIRS, API_A_EXTRA, CURRENCY_GEO.
